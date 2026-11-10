@@ -48,7 +48,7 @@ jobs:
           GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
           APP_ACCESS_PASSWORD: ${{ secrets.APP_ACCESS_PASSWORD }}
           SESSION_SECRET: ${{ secrets.SESSION_SECRET }}
-          GROQ_MODEL: ${{ vars.GROQ_MODEL }}
+          GROQ_MODEL: ${{ vars.GROQ_MODEL || 'openai/gpt-oss-20b' }}
           PORT: "8000"
         run: |
           nohup gunicorn --workers 2 --threads 4 --bind 0.0.0.0:8000 --timeout 120 app:app > nova-server.log 2>&1 &
@@ -71,7 +71,7 @@ jobs:
               echo "" >> "$GITHUB_STEP_SUMMARY"
               echo "**Temporary website:** $URL" >> "$GITHUB_STEP_SUMMARY"
               echo "" >> "$GITHUB_STEP_SUMMARY"
-              echo "Open the link and sign in using your APP_ACCESS_PASSWORD secret." >> "$GITHUB_STEP_SUMMARY"
+              echo "Open the temporary URL and sign in using your APP_ACCESS_PASSWORD secret." >> "$GITHUB_STEP_SUMMARY"
               echo "NOVA_URL=$URL" >> "$GITHUB_ENV"
               echo "Nova AI URL: $URL"
               break

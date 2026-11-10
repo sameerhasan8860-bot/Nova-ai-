@@ -1,0 +1,101 @@
+name: Run Nova AI
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: nova-ai-runner
+  cancel-in-progress: true
+
+jobs:
+  run:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 350
+    steps:
+      - name: Check required secrets
+        env:
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+          APP_ACCESS_PASSWORD: ${{ secrets.APP_ACCESS_PASSWORD }}
+        run: |
+          test -n "$GROQ_API_KEY" || { echo "::error::Add GROQ_API_KEY in Settings > Secrets and variables > Actions."; exit 1; }
+          test -n "$APP_ACCESS_PASSWORD" || { echo "::error::Add APP_ACCESS_PASSWORD in Settings > Secrets and variables > Actions."; exit 1; }
+
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Install Cloudflare Tunnel
+        run: |
+          curl -fsSL https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64 -o cloudflared
+          sudo install -m 0755 cloudflared /usr/local/bin/cloudflared
+          cloudflared --version
+
+      - name: Start Nova AI server
+        env:
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+          APP_ACCESS_PASSWORD: ${{ secrets.APP_ACCESS_PASSWORD }}
+          SESSION_SECRET: ${{ secrets.SESSION_SECRET }}
+          GROQ_MODEL: ${{ vars.GROQ_MODEL }}
+          PORT: "8000"
+        run: |
+          nohup gunicorn --workers 2 --threads 4 --bind 0.0.0.0:8000 --timeout 120 app:app > nova-server.log 2>&1 &
+          for i in $(seq 1 30); do
+            if curl -fsS http://127.0.0.1:8000/api/health >/dev/null; then
+              echo "Nova server is healthy."
+              break
+            fi
+            sleep 2
+          done
+          curl -fsS http://127.0.0.1:8000/api/health || { cat nova-server.log; exit 1; }
+
+      - name: Start temporary public tunnel
+        run: |
+          nohup cloudflared tunnel --url http://127.0.0.1:8000 --no-autoupdate > cloudflared.log 2>&1 &
+          for i in $(seq 1 60); do
+            URL=$(grep -oE 'https://[a-zA-Z0-9-]+\.trycloudflare\.com' cloudflared.log | head -n 1 || true)
+            if [ -n "$URL" ]; then
+              echo "## Nova AI is online" >> "$GITHUB_STEP_SUMMARY"
+              echo "" >> "$GITHUB_STEP_SUMMARY"
+              echo "**Temporary website:** $URL" >> "$GITHUB_STEP_SUMMARY"
+              echo "" >> "$GITHUB_STEP_SUMMARY"
+              echo "Open the link and sign in using your APP_ACCESS_PASSWORD secret." >> "$GITHUB_STEP_SUMMARY"
+              echo "NOVA_URL=$URL" >> "$GITHUB_ENV"
+              echo "Nova AI URL: $URL"
+              break
+            fi
+            sleep 2
+          done
+          test -n "${URL:-}" || { cat cloudflared.log; exit 1; }
+
+      - name: Keep website online
+        run: |
+          echo "Nova AI will remain online while this workflow is running."
+          for i in $(seq 1 20700); do
+            if ! curl -fsS http://127.0.0.1:8000/api/health >/dev/null; then
+              echo "::error::Nova server stopped responding."
+              cat nova-server.log
+              exit 1
+            fi
+            sleep 1
+          done
+
+      - name: Show server logs
+        if: always()
+        run: |
+          echo "----- Nova server log -----"
+          tail -n 100 nova-server.log || true
+          echo "----- Cloudflare tunnel log -----"
+          tail -n 100 cloudflared.log || true

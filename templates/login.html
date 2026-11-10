@@ -1,0 +1,15 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Sign in · Nova AI</title>
+<style>
+*{box-sizing:border-box}body{margin:0;min-height:100vh;display:grid;place-items:center;background:#090d18;color:#eef2ff;font-family:Inter,system-ui,Arial}
+.card{width:min(92%,390px);padding:32px;border:1px solid #26324b;border-radius:22px;background:#111827;box-shadow:0 24px 80px #0008}
+.logo{width:48px;height:48px;border-radius:15px;display:grid;place-items:center;background:linear-gradient(135deg,#8b5cf6,#22d3ee);font-weight:900;font-size:22px}
+h1{margin:18px 0 6px;font-size:27px}p{color:#9caecb;line-height:1.5}input{width:100%;padding:14px;margin:14px 0;border:1px solid #34415d;border-radius:12px;background:#0b1220;color:white;font-size:16px}button{width:100%;padding:14px;border:0;border-radius:12px;background:linear-gradient(90deg,#7c3aed,#2563eb);color:white;font-weight:700;font-size:15px;cursor:pointer}.error{color:#fca5a5;font-size:14px}
+</style></head>
+<body><main class="card"><div class="logo">N</div><h1>Welcome to Nova</h1><p>Your all-in-one AI assistant. Enter the private access password to continue.</p>
+<form method="post"><input name="password" type="password" placeholder="Access password" required autofocus><button type="submit">Continue</button></form>
+{% if error %}<div class="error">{{ error }}</div>{% endif %}
+</main></body></html>
